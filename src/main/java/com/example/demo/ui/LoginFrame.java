@@ -3,6 +3,7 @@ package com.example.demo.ui;
 import com.example.demo.api.ApiService;
 import com.example.demo.api.RetrofitClient;
 import com.example.demo.dto.LoginDTO;
+import com.example.demo.util.TokenStore;
 import retrofit2.Call;
 import retrofit2.Response;
 
@@ -22,9 +23,7 @@ public class LoginFrame extends JFrame {
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Inicializar Retrofit
         apiService = RetrofitClient.getClient().create(ApiService.class);
-
         initComponents();
     }
 
@@ -69,71 +68,59 @@ public class LoginFrame extends JFrame {
         gbc.gridy = 2;
         panel.add(passField, gbc);
 
-        // Botón Login
+        // Botones
         loginButton = new JButton("Login");
-        loginButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        gbc.gridx = 0; 
-        gbc.gridy = 3; 
-        gbc.gridwidth = 1;
-        panel.add(loginButton, gbc);
-
-        // Botón Register
         registerButton = new JButton("Register");
+        loginButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
         registerButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        gbc.gridx = 1; 
-        gbc.gridy = 3; 
+        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 1;
+        panel.add(loginButton, gbc);
+        gbc.gridx = 1; gbc.gridy = 3;
         panel.add(registerButton, gbc);
 
-        // Acciones
         loginButton.addActionListener(e -> doLogin());
-        registerButton.addActionListener(e -> {
-            // Abrir ventana de registro
-            new RegisterFrame().setVisible(true);
-            // Podríamos cerrar la ventana de login, o no. Depende de tu flujo:
-            // this.dispose();
-        });
+        registerButton.addActionListener(e -> new RegisterFrame().setVisible(true));
 
         add(panel);
     }
 
     private void doLogin() {
-        String username = userField.getText();
-        String password = new String(passField.getPassword());
-
+        String username = userField.getText().trim();
+        String password = new String(passField.getPassword()).trim();
         LoginDTO loginDTO = new LoginDTO(username, password);
 
         try {
             Call<String> call = apiService.login(loginDTO);
             Response<String> response = call.execute();
             if (response.isSuccessful()) {
+                // 1) extrae el rol
                 String rol = response.body();
+                // 2) extrae el token de la cabecera
+                String authHeader = response.headers().get("Authorization");
+                String token = authHeader != null ? authHeader.substring(7) : null;
+                TokenStore.setToken(token);
+
                 if ("admin".equalsIgnoreCase(rol) || "veterinario".equalsIgnoreCase(rol)) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Login exitoso. Rol: " + rol, 
-                        "Información", 
-                        JOptionPane.INFORMATION_MESSAGE);
-                    // Abre AdminMenuFrame
-                    AdminMenuFrame menuFrame = new AdminMenuFrame();
-                    menuFrame.setVisible(true);
+                    JOptionPane.showMessageDialog(this,
+                        "Login exitoso. Rol: " + rol,
+                        "Información", JOptionPane.INFORMATION_MESSAGE);
+                    new AdminMenuFrame().setVisible(true);
                     this.dispose();
                 } else {
-                    JOptionPane.showMessageDialog(this, 
-                        "Login exitoso. Rol: " + rol + ". Sin acceso a menú.", 
-                        "Información", 
-                        JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                        "Login exitoso. Rol: " + rol + ". Sin acceso a menú.",
+                        "Información", JOptionPane.WARNING_MESSAGE);
                 }
             } else {
-                JOptionPane.showMessageDialog(this, 
-                    "Error en login: " + response.message(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                    "Error en login: " + response.message(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
             }
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, 
-                "Ocurrió un error: " + ex.getMessage(), 
-                "Error", 
-                JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                "Ocurrió un error: " + ex.getMessage(),
+                "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }
